@@ -4,6 +4,7 @@ var scope:= FuncGodotMapParser.ParseScope.FILE
 var comment: bool = false
 var entity_idx: int = -1
 var brush_idx: int = -1
+var patch_idx: int = -1
 var face_idx: int = -1
 var component_idx: int = 0
 var prop_key: String = ""
@@ -13,6 +14,8 @@ var valve_uvs: bool = false
 var current_face: FuncGodotMapData.FuncGodotFace
 var current_brush: FuncGodotMapData.FuncGodotBrush
 var current_entity: FuncGodotMapData.FuncGodotEntity
+var current_patch: FuncGodotMapData.FuncGodotPatch
+
 
 var map_data: FuncGodotMapData
 var _keep_tb_groups: bool = false
@@ -23,6 +26,7 @@ func _init(in_map_data: FuncGodotMapData) -> void:
 func load(map_file: String, keep_tb_groups: bool) -> bool:
 	current_face = FuncGodotMapData.FuncGodotFace.new()
 	current_brush = FuncGodotMapData.FuncGodotBrush.new()
+	current_patch = FuncGodotMapData.FuncGodotPatch.new()
 	current_entity = FuncGodotMapData.FuncGodotEntity.new()
 	
 	scope = FuncGodotMapParser.ParseScope.FILE
@@ -30,6 +34,7 @@ func load(map_file: String, keep_tb_groups: bool) -> bool:
 	entity_idx = -1
 	brush_idx = -1
 	face_idx = -1
+	patch_idx = -1
 	component_idx = 0
 	valve_uvs = false
 	_keep_tb_groups = keep_tb_groups
@@ -79,6 +84,8 @@ func set_scope(new_scope: FuncGodotMapParser.ParseScope) -> void:
 			print("Switching to property value scope")
 		ParseScope.BRUSH:
 			print("Switching to brush " + str(brush_idx) + " scope")
+		ParseScope.PATCHDEF2:
+			print("Switching to patchDef2 brush " + str(brush_idx) + "scope")
 		ParseScope.PLANE_0:
 			print("Switching to face " + str(face_idx) + " plane 0 scope")
 		ParseScope.PLANE_1:
@@ -104,7 +111,13 @@ func set_scope(new_scope: FuncGodotMapParser.ParseScope) -> void:
 	"""
 	scope = new_scope
 
+var current_line: int = 00
+
 func token(buf_str: String) -> void:
+	prints("Read line %s" % current_line, buf_str)
+	
+	current_line += 1
+	
 	if comment:
 		return
 	elif buf_str == "//":
@@ -117,6 +130,7 @@ func token(buf_str: String) -> void:
 				entity_idx += 1
 				brush_idx = -1
 				set_scope(FuncGodotMapParser.ParseScope.ENTITY)
+		
 		FuncGodotMapParser.ParseScope.ENTITY:
 			if buf_str.begins_with('"'):
 				prop_key = buf_str.substr(1)
@@ -130,6 +144,7 @@ func token(buf_str: String) -> void:
 			elif buf_str == "}":
 				commit_entity()
 				set_scope(FuncGodotMapParser.ParseScope.FILE)
+		
 		FuncGodotMapParser.ParseScope.PROPERTY_VALUE:
 			var is_first = buf_str[0] == '"'
 			var is_last = buf_str.right(1) == '"'
@@ -146,14 +161,62 @@ func token(buf_str: String) -> void:
 			if is_last:
 				current_entity.properties[prop_key] = current_property.substr(1, len(current_property) - 2)
 				set_scope(FuncGodotMapParser.ParseScope.ENTITY)
+	
 		FuncGodotMapParser.ParseScope.BRUSH:
-			if buf_str == "(":
+			
+			# VL: Perhaps unnecessary as typically NRC spits out "patchDef2". However, I can't
+			# say if that's entirely consistent across all .map editors and files.
+			
+			if buf_str.to_lower() == "patchdef2":
+				patch_idx += 1
+				set_scope(FuncGodotMapParser.ParseScope.PATCHDEF2)
+				
+			elif buf_str == "(":
 				face_idx += 1
 				component_idx = 0
 				set_scope(FuncGodotMapParser.ParseScope.PLANE_0)
+				
 			elif buf_str == "}":
 				commit_brush()
 				set_scope(FuncGodotMapParser.ParseScope.ENTITY)
+				
+		FuncGodotMapParser.ParseScope.PATCHDEF2:
+			#{
+			#patchDef2  # we are here at start
+			#{
+			# texture_name
+			#( 3 3 0 0 0 ) # subdiv X/Y, face attributes (surface, content flags, value ; unused for now)
+			#(
+			#( ( -128 -496 -32 -2 -2 ) ( -128 -368 -32 0 -2 ) ( -128 -240 -32 2 -2 ) )
+			#( ( 0 -496 -32 -2 0 ) ( 0 -368 32 0 0 ) ( 0 -240 -32 2 0 ) )
+			#( ( 128 -496 -32 -2 2 ) ( 128 -368 -32 0 2 ) ( 128 -240 -32 2 2 ) )
+			#)
+			#}
+			#}
+			
+			if buf_str == "{":
+				component_idx = 0
+				
+			elif buf_str == "(":
+				prints("Reading vertices")
+			
+			elif buf_str == ")":
+				prints("closing vertex")
+				
+			elif buf_str == "}":
+				commit_patch()
+				set_scope(FuncGodotMapParser.ParseScope.ENTITY)
+				
+			else:
+				match component_idx:
+					0: current_patch.texture_idx = map_data.register_texture(buf_str)
+					1,2: current_patch.indices[component_idx - 1] = float(buf_str)
+					3,4,5: pass # Contains face attributes, which are currently unsupported in func_godot
+					
+					
+				component_idx += 1
+						
+		
 		FuncGodotMapParser.ParseScope.PLANE_0:
 			if buf_str == ")":
 				component_idx = 0
@@ -286,6 +349,12 @@ func commit_face() -> void:
 	current_brush.faces.append(current_face)
 	current_face = FuncGodotMapData.FuncGodotFace.new()
 
+func commit_patch() -> void:
+	
+	
+	
+	return
+
 # Nested
 enum ParseScope{
 	FILE,
@@ -293,6 +362,7 @@ enum ParseScope{
 	ENTITY,
 	PROPERTY_VALUE,
 	BRUSH,
+	PATCHDEF2,
 	PLANE_0,
 	PLANE_1,
 	PLANE_2,
