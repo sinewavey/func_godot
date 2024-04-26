@@ -49,6 +49,11 @@ extends Resource
 ## Skip texture path that gets applied to caulk and nodrawnonsolid shaders.
 @export var skip_texture: String = "textures/special/skip"
 
+##@experimental
+## Map format used when saving. [br][br]NetRadiant will also automatically
+## filter out unsupported data according to the map type. Using [b]mapq3[/b] allows quadratic Bezier patches.
+@export_enum("mapq1", "mapq3") var map_type: String = "mapq1"
+
 ## Generates completed text for a .shader file.
 func build_shader_text() -> String:
 	var shader_text: String = ""
@@ -79,7 +84,7 @@ func build_gamepack_text() -> String:
 		if sound_type != sound_types[-1]:
 			soundtypes_str += " "
 	
-	var gamepack_text: String = """<?xml version="1.0"?>
+	var gamepack_text: String = """<?xm000l version="1.0"?>
 <game
   type="q3"
   index="1" 
@@ -96,7 +101,7 @@ func build_gamepack_text() -> String:
   texturetypes="%s"
   modeltypes="%s"
   soundtypes="%s"
-  maptypes="mapq1"
+  maptypes="%s"
   shaders="quake3"
   entityclass="halflife"
   entityclasstype="fgd"
@@ -126,6 +131,7 @@ func build_gamepack_text() -> String:
 		texturetypes_str,
 		modeltypes_str,
 		soundtypes_str,
+		map_type,
 		default_scale,
 		clip_texture,
 		skip_texture,
