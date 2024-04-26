@@ -133,3 +133,13 @@ class FuncGodotTextureData:
 	
 	func _init(in_name: String):
 		name = in_name
+
+class FuncGodotPatchVertex:
+	var vertex: Vector3
+	var uv: Vector2
+	
+class FuncGodotPatch:
+	var subdivisons: int
+	var indices: Vector2
+	var vertices: Array[FuncGodotPatchVertex]
+	var texture_idx: int
