@@ -156,3 +156,20 @@ class FuncGodotTextureData:
 	
 	func _init(in_name: String):
 		name = in_name
+
+class FuncGodotPatch:
+	var controls: Array[FuncGodotPatchControl]
+	var m: int
+	var n: int
+	var texture_idx: int
+
+
+class FuncGodotPatchControl:
+	var x: float
+	var y: float
+	var z: float
+	var u: float
+	var v: float
+
+	func as_string() -> String:
+		return "%s %s %s %s %s" % [x, y, z, u, v]

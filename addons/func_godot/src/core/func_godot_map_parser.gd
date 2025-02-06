@@ -10,9 +10,12 @@ var prop_key: String = ""
 var current_property: String = ""
 var valve_uvs: bool = false
 
+var patch_buf: Array[float];
+
 var current_face: FuncGodotMapData.FuncGodotFace
 var current_brush: FuncGodotMapData.FuncGodotBrush
 var current_entity: FuncGodotMapData.FuncGodotEntity
+var current_patch: FuncGodotMapData.FuncGodotPatch
 
 var map_data: FuncGodotMapData
 var _keep_tb_groups: bool = false
@@ -88,16 +91,22 @@ func split_string(s: String, delimeters: Array[String], allow_empty: bool = true
 	return parts
 	
 func set_scope(new_scope: FuncGodotMapParser.ParseScope) -> void:
-	"""
+	#"""
 	match new_scope:
 		ParseScope.FILE:
 			print("Switching to file scope.")
 		ParseScope.ENTITY:
-			print("Switching to entity " + str(entity_idx) + "scope")
+			print("Switching to entity " + str(entity_idx) + " scope")
 		ParseScope.PROPERTY_VALUE:
 			print("Switching to property value scope")
 		ParseScope.BRUSH:
 			print("Switching to brush " + str(brush_idx) + " scope")
+		ParseScope.PATCH:
+			print("Switching to patch scope");
+		ParseScope.PATCH_DATA:
+			print("Switching to patch data scope");
+		ParseScope.PATCH_VERTS:
+			print("Switching to patch vertices scope");
 		ParseScope.PLANE_0:
 			print("Switching to face " + str(face_idx) + " plane 0 scope")
 		ParseScope.PLANE_1:
@@ -120,12 +129,13 @@ func set_scope(new_scope: FuncGodotMapParser.ParseScope) -> void:
 			print("Switching to U scale scope")
 		ParseScope.V_SCALE:
 			print("Switching to V scale scope")
-	"""
+	#"""
 	scope = new_scope
 
 func token(buf_str: String) -> void:
 	if comment:
 		return
+
 	elif buf_str == "//":
 		comment = true
 		return
@@ -166,7 +176,11 @@ func token(buf_str: String) -> void:
 				current_entity.properties[prop_key] = current_property.substr(1, len(current_property) - 2)
 				set_scope(FuncGodotMapParser.ParseScope.ENTITY)
 		FuncGodotMapParser.ParseScope.BRUSH:
-			if buf_str == "(":
+			if buf_str == "patchDef2":
+				component_idx = 0
+				current_patch = FuncGodotMapData.FuncGodotPatch.new();
+				set_scope(FuncGodotMapParser.ParseScope.PATCH)
+			elif buf_str == "(":
 				face_idx += 1
 				component_idx = 0
 				set_scope(FuncGodotMapParser.ParseScope.PLANE_0)
@@ -217,6 +231,60 @@ func token(buf_str: String) -> void:
 							current_face.plane_points.v2.z = float(buf_str)
 							
 					component_idx += 1
+		#########
+
+		FuncGodotMapParser.ParseScope.PATCH:
+			if buf_str == "{":
+				set_scope(FuncGodotMapParser.ParseScope.PATCH_DATA)	
+			elif buf_str == "}":
+				set_scope(FuncGodotMapParser.ParseScope.BRUSH)
+				print("Patch data (M: %s N: %s):" % [current_patch.m, current_patch.n]);
+				for elem in current_patch.controls:
+					print(elem.as_string())
+
+
+
+		FuncGodotMapParser.ParseScope.PATCH_DATA:
+			if buf_str == ")":
+				component_idx = 0
+				set_scope(FuncGodotMapParser.ParseScope.PATCH_VERTS);
+			elif buf_str != "(":
+				if component_idx == 1:
+					current_patch.m = buf_str.to_int()
+				elif component_idx == 2:
+					current_patch.n = buf_str.to_int()
+				
+				component_idx += 1
+
+
+		FuncGodotMapParser.ParseScope.PATCH_VERTS:
+			if buf_str == "(":
+				component_idx += 1
+				if component_idx == 3:
+					patch_buf = []
+
+			elif buf_str == ")":
+				if component_idx == 3:
+					var control := FuncGodotMapData.FuncGodotPatchControl.new()
+					
+					control.x = patch_buf[0]
+					control.y = patch_buf[1]
+					control.z = patch_buf[2]
+					control.u = patch_buf[3]
+					control.v = patch_buf[4]
+
+					current_patch.controls.append(control)
+
+				component_idx -= 1
+
+				if component_idx == 0:
+					set_scope(FuncGodotMapParser.ParseScope.PATCH)
+
+			elif component_idx == 3:
+				patch_buf.push_back(buf_str.to_float())
+		
+		#########
+
 		FuncGodotMapParser.ParseScope.TEXTURE:
 			current_face.texture_idx = map_data.register_texture(buf_str)
 			set_scope(FuncGodotMapParser.ParseScope.U)
@@ -312,6 +380,9 @@ enum ParseScope{
 	ENTITY,
 	PROPERTY_VALUE,
 	BRUSH,
+	PATCH,
+	PATCH_DATA,
+	PATCH_VERTS,
 	PLANE_0,
 	PLANE_1,
 	PLANE_2,
