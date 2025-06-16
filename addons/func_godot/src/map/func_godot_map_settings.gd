@@ -8,6 +8,9 @@ extends Resource
 var scale_factor: float = 0.03125
 @export var inverse_scale_factor: float = 32.0 :
 	set(value):
+		if value == 0.0:
+			printerr("Error: Cannot set Inverse Scale Factor to Zero")
+			return
 		inverse_scale_factor = value
 		scale_factor = 1.0 / value
 
@@ -28,13 +31,19 @@ var scale_factor: float = 0.03125
 @export var texture_file_extensions: Array[String] = ["png", "jpg", "jpeg", "bmp", "tga", "webp"]
 
 ## Optional path for the clip texture, relative to [member base_texture_dir]. Brush faces textured with the clip texture will have those faces removed from the generated [MeshInstance3D] but not the generated [CollisionShape3D].
-@export var clip_texture: String = "special/clip"
+@export var clip_texture: String = "special/clip":
+	set(tex):
+		clip_texture = tex.to_lower()
 
 ## Optional path for the skip texture, relative to [member base_texture_dir]. Brush faces textured with the skip texture will have those faces removed from the generated [MeshInstance3D]. If the [FuncGodotFGDSolidClass] `collision_shape_type` is set to concave then it will also remove collision from those faces in the generated [CollisionShape3D].
-@export var skip_texture: String = "special/skip"
+@export var skip_texture: String = "special/skip":
+	set(tex):
+		skip_texture = tex.to_lower()
 
 ## Optional path for the origin texture, relative to [member base_texture_dir]. Brush faces textured with the origin texture will have those faces removed from the generated [MeshInstance3D]. The bounds of these faces will be used to calculate the origin point of the entity.
-@export var origin_texture: String = "special/origin"
+@export var origin_texture: String = "special/origin":
+	set(tex):
+		origin_texture = tex.to_lower()
 
 ## Optional [QuakeWADFile] resources to apply textures from. See the [Quake Wiki](https://quakewiki.org/wiki/Texture_Wad) for more information on Quake Texture WADs.
 @export var texture_wads: Array[Resource] = []
